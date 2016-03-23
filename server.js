@@ -2,9 +2,9 @@ var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
 var knex = require('./config');
-var _ = require('lodash');
+//var _ = require('lodash');
 var Promise = require('bluebird');
-
+var _ = require('underscore');
 
 var router = express.Router();
 
@@ -128,11 +128,28 @@ router.route('/skills')
 
 router.route('/projects')
   .get(function(req,res){
-    knex('projects').select(['projects.id as projectId','projects.name as projectName','projects.category_id','categories.name as categoryName','skills_projects.skill_id as skills']).innerJoin('categories','projects.category_id','categories.id').innerJoin('skills_projects','projects.id','skills_projects.project_id')
+    /*
+    //knex('projects').select(['projects.id as projectId','projects.name as projectName','projects.category_id','categories.name as categoryName','skills_projects.skill_id as skills']).innerJoin('categories','projects.category_id','categories.id').innerJoin('skills_projects','projects.id','skills_projects.project_id')
+    knex('projects').select(['projects.id as projectId','projects.name as projectName','categories.name as categoryName']).innerJoin('categories','projects.category_id','categories.id')
     .then(function(collection){
-      res.json({
-        error:false,
-        data: collection
+      _.forEach(collection,function(obj){
+        obj.skills = [];
+        knex('skills_projects').select(['skills_projects.skill_id as skillId','skills.name as skillName']).innerJoin('skills','skills_projects.skill_id','skills.id').where('skills_projects.project_id',obj.projectId)
+        .then(function(skillSet){
+          _.forEach(skillSet,function(skill){
+            obj.skills.push(skill.skillName);
+            return obj;
+          })
+        })
+        .then(function(){
+          console.log('-------')
+        })
+      })
+      .then(function(){
+        res.json({
+          error:false,
+          data: collection
+        })
       })
     })
     .catch(function(err){
@@ -144,6 +161,30 @@ router.route('/projects')
       })
     })
   })
+  */
+    knex('projects')
+    .innerJoin('categories','projects.category_id','categories.id')
+    .innerJoin('skills_projects','projects.id','skills_projects.project_id')
+    .innerJoin('skills','skills.id','skills_projects.skill_id')
+    .select([
+      'projects.id as projectID',
+      'projects.name as projectName',
+     'categories.name as categoryName',
+      knex.raw('GROUP_CONCAT(skills.name) as skills')
+    ])
+    .groupBy('projects.id')
+    .then(function(coll){
+      _.forEach(coll,function(obj){
+        obj.skills = obj.skills.split(',')
+      })
+      res.json({
+        error:false,
+        data:coll
+      })
+    })
+})
+
+
   .post(function(req,res){
       var name = req.body.name,
           category_name= req.body.category_name,
